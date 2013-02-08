@@ -97,6 +97,10 @@ _.extend(Backbone.LocalStorage.prototype, {
     return model;
   },
 
+  destroyList: function() {
+      this.localStorage().setItem(this.name, "");
+  },
+
   localStorage: function() {
     return localStorage;
   },
@@ -121,6 +125,36 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
     switch (method) {
       case "read":
         resp = model.id != undefined ? store.find(model) : store.findAll();
+
+        //in case there is data in local storage, fill actuall collection with models found
+        if (resp && resp.constructor == Array && resp.length > 0) {
+          resp =  model[options.add ? 'add' : 'reset'](model.parse(resp, options));
+        }
+
+        // fetch from remote server
+        var success = options.success;
+        options = _.extend({"forceRemote": true},options);
+        options.success = function(model, response, options) {
+          if (!response.objects) response = {objects: response};
+          if (model.models) {     // is collection if contains models
+            model[options.add ? 'add' : 'reset'](model.parse(response, options));
+            store.destroyList();
+            model.forEach(function(m){
+              m.save();
+            });
+
+            if (success) success(model, response, options);
+          } else {                // is not a collection
+            if (!model.set(model.parse(response, options))) return false;
+
+            store.destroy(model);
+            model.save();
+
+            if (success) success(model, response, options);
+          }
+        }
+        Backbone.sync(method, model, options);
+
         break;
       case "create":
         resp = store.create(model);
@@ -140,20 +174,19 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
       errorMessage = error.message;
   }
 
-  if (resp) {
-    model.trigger("sync", model, resp, options);
-    if (options && options.success)
-      if (Backbone.VERSION === "0.9.10") {
-        options.success(model, resp, options);
-      } else {
-        options.success(resp);
-      }
-    if (syncDfd)
-      syncDfd.resolve(resp);
-
+  //only objects are correct response, fix when local storage collection returns an empty array
+  if (resp && resp.constructor == Object) {
+      model.trigger("sync", model, resp, options);
+      if (options && options.success)
+        if (Backbone.VERSION === "0.9.10") {
+          options.success(model, resp, options);
+        } else {
+          options.success(resp);
+        }
+      if (syncDfd)
+        syncDfd.resolve(resp);
   } else {
-    errorMessage = errorMessage ? errorMessage
-                                : "Record Not Found";
+    errorMessage = errorMessage ? errorMessage : "Record Not Found";
     
     model.trigger("error", model, errorMessage, options);
     if (options && options.error)
@@ -176,18 +209,20 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
 
 Backbone.ajaxSync = Backbone.sync;
 
-Backbone.getSyncMethod = function(model) {
+Backbone.getSyncMethod = function(model, options) {
   if(model.localStorage || (model.collection && model.collection.localStorage)) {
+    if (options.forceRemote) {
+      return Backbone.ajaxSync;
+    }
     return Backbone.localSync;
   }
-
   return Backbone.ajaxSync;
 };
 
 // Override 'Backbone.sync' to default to localSync,
 // the original 'Backbone.sync' is still available in 'Backbone.ajaxSync'
 Backbone.sync = function(method, model, options) {
-  return Backbone.getSyncMethod(model).apply(this, [method, model, options]);
+  return Backbone.getSyncMethod(model,options).apply(this, [method, model, options]);
 };
 
 return Backbone.LocalStorage;
