@@ -133,7 +133,6 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
 
         // fetch from remote server
         var success = options.success;
-        options = _.extend({"forceRemote": true},options);
         options.success = function(model, response, options) {
           if (!response.objects) response = {objects: response};
           if (model.models) {     // is collection if contains models
@@ -153,7 +152,7 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
             if (success) success(model, response, options);
           }
         }
-        Backbone.sync(method, model, options);
+        Backbone.ajaxSync(method, model, options);
 
         break;
       case "create":
@@ -209,11 +208,8 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
 
 Backbone.ajaxSync = Backbone.sync;
 
-Backbone.getSyncMethod = function(model, options) {
+Backbone.getSyncMethod = function(model) {
   if(model.localStorage || (model.collection && model.collection.localStorage)) {
-    if (options.forceRemote) {
-      return Backbone.ajaxSync;
-    }
     return Backbone.localSync;
   }
   return Backbone.ajaxSync;
@@ -222,7 +218,7 @@ Backbone.getSyncMethod = function(model, options) {
 // Override 'Backbone.sync' to default to localSync,
 // the original 'Backbone.sync' is still available in 'Backbone.ajaxSync'
 Backbone.sync = function(method, model, options) {
-  return Backbone.getSyncMethod(model,options).apply(this, [method, model, options]);
+  return Backbone.getSyncMethod(model).apply(this, [method, model, options]);
 };
 
 return Backbone.LocalStorage;
