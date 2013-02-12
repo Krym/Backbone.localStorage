@@ -134,9 +134,10 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
         // fetch from remote server
         var success = options.success;
         options.success = function(model, response, options) {
-          if (!response.objects) response = {objects: response};
+          response = (!response.objects) ? response : response.objects;
           if (model.models) {     // is collection if contains models
-            model[options.add ? 'add' : 'reset'](model.parse(response, options));
+            var method = options.update ? 'update' : 'reset';
+            model[method](response, options);
             store.destroyList();
             model.forEach(function(m){
               m.save();
@@ -144,7 +145,7 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
 
             if (success) success(model, response, options);
           } else {                // is not a collection
-            if (!model.set(model.parse(response, options))) return false;
+            if (!model.set(response, options)) return false;
 
             store.destroy(model);
             model.save();
