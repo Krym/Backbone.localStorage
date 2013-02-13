@@ -36,10 +36,9 @@ function guid() {
 // Our Store is represented by a single JS object in *localStorage*. Create it
 // with a meaningful name, like the name you'd give a table.
 // window.Store is deprectated, use Backbone.LocalStorage instead
-Backbone.LocalStorage = window.Store = function(name) {
+Backbone.LocalStorage = window.Store = function(name, species) {
   this.name = name;
-  var store = this.localStorage().getItem(this.name);
-  this.records = (store && store.split(",")) || [];
+  this.species = (typeof species != "undefined") ? species : "";
 };
 
 _.extend(Backbone.LocalStorage.prototype, {
@@ -47,6 +46,10 @@ _.extend(Backbone.LocalStorage.prototype, {
   // Save the current state of the **Store** to *localStorage*.
   save: function() {
     this.localStorage().setItem(this.name, this.records.join(","));
+  },
+
+  createList: function(collection) {
+    this.localStorage().setItem(this.name + "#" + this.species, collection.pluck("id"));
   },
 
   // Add a model, giving it a (hopefully)-unique GUID, if it doesn't already
@@ -57,16 +60,16 @@ _.extend(Backbone.LocalStorage.prototype, {
       model.set(model.idAttribute, model.id);
     }
     this.localStorage().setItem(this.name+"-"+model.id, JSON.stringify(model));
-    this.records.push(model.id.toString());
-    this.save();
+    //this.records.push(model.id.toString());
+    //this.save();
     return this.find(model);
   },
 
   // Update a model by replacing its copy in `this.data`.
   update: function(model) {
     this.localStorage().setItem(this.name+"-"+model.id, JSON.stringify(model));
-    if (!_.include(this.records, model.id.toString()))
-      this.records.push(model.id.toString()); this.save();
+    // if (!_.include(this.records, model.id.toString()))
+    //   this.records.push(model.id.toString()); this.save();
     return this.find(model);
   },
 
@@ -77,7 +80,9 @@ _.extend(Backbone.LocalStorage.prototype, {
 
   // Return the array of all models currently in storage.
   findAll: function() {
-    return _(this.records).chain()
+    var store = this.localStorage().getItem(this.name + "#" + this.species);
+    var records = (store && store.split(",")) || [];
+    return _(records).chain()
       .map(function(id){
         return this.jsonData(this.localStorage().getItem(this.name+"-"+id));
       }, this)
@@ -90,15 +95,15 @@ _.extend(Backbone.LocalStorage.prototype, {
     if (model.isNew())
       return false
     this.localStorage().removeItem(this.name+"-"+model.id);
-    this.records = _.reject(this.records, function(id){
-      return id === model.id.toString();
-    });
-    this.save();
+    // this.records = _.reject(this.records, function(id){
+    //   return id === model.id.toString();
+    // });
+    // this.save();
     return model;
   },
 
   destroyList: function() {
-      this.localStorage().setItem(this.name, "");
+      this.localStorage().setItem(this.name + "#" + this.species, "");
   },
 
   localStorage: function() {
@@ -128,7 +133,8 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
 
         //in case there is data in local storage, fill actuall collection with models found
         if (resp && resp.constructor == Array && resp.length > 0) {
-          resp =  model[options.add ? 'add' : 'reset'](model.parse(resp, options));
+          var method = options.update ? 'update' : 'reset';
+          model[method](resp, options);
         }
 
         // fetch from remote server
@@ -138,7 +144,8 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
           if (model.models) {     // is collection if contains models
             var method = options.update ? 'update' : 'reset';
             model[method](response, options);
-            store.destroyList();
+            //store.destroyList();
+            store.createList(model);
             model.forEach(function(m){
               m.save();
             });
@@ -147,7 +154,7 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
           } else {                // is not a collection
             if (!model.set(response, options)) return false;
 
-            store.destroy(model);
+            //store.destroy(model);
             model.save();
 
             if (success) success(model, response, options);
@@ -209,9 +216,9 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
 
 Backbone.ajaxSync = Backbone.sync;
 
-Backbone.getSyncMethod = function(model) {
+Backbone.getSyncMethod = function(model, options) {
   if(model.localStorage || (model.collection && model.collection.localStorage)) {
-    return Backbone.localSync;
+    return (!options.forceRemote) ? Backbone.localSync : Backbone.ajaxSync;
   }
   return Backbone.ajaxSync;
 };
@@ -219,7 +226,7 @@ Backbone.getSyncMethod = function(model) {
 // Override 'Backbone.sync' to default to localSync,
 // the original 'Backbone.sync' is still available in 'Backbone.ajaxSync'
 Backbone.sync = function(method, model, options) {
-  return Backbone.getSyncMethod(model).apply(this, [method, model, options]);
+  return Backbone.getSyncMethod(model, options).apply(this, [method, model, options]);
 };
 
 return Backbone.LocalStorage;
