@@ -17,8 +17,10 @@ Create your collections like so:
 
 ```javascript
 window.SomeCollection = Backbone.Collection.extend({
-  
-  localStorage: new Backbone.LocalStorage("SomeCollection"), // Unique name within your app.
+
+  initialize: function() {
+    this.localStorage = new Backbone.LocalStorage("UniqueNameWithinApp", uniqueForEachInstance());
+  }
   
   // ... everything else is normal.
   
