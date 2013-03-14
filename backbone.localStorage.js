@@ -161,6 +161,7 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
           }
         }
         Backbone.ajaxSync(method, model, options);
+        options.success = success;
 
         break;
       case "create":
