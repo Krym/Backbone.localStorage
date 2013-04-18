@@ -183,22 +183,23 @@ Backbone.LocalStorage.sync = window.Store.sync = Backbone.localSync = function(m
   }
 
   //only objects are correct response, fix when local storage collection returns an empty array
-  if (resp && resp.constructor == Object) {
-      model.trigger("sync", model, resp, options);
-      if (options && options.success)
+  if (resp && (resp.constructor != Array || (resp.length > 0))) {
+      model.trigger("lsync", model, resp, options);
+      if (options && options.lsuccess)
         if (Backbone.VERSION === "0.9.10") {
-          options.success(model, resp, options);
+          options.lsuccess(model, resp, options);
         } else {
-          options.success(resp);
+          options.lsuccess(resp);
         }
       if (syncDfd)
         syncDfd.resolve(resp);
   } else {
     errorMessage = errorMessage ? errorMessage : "Record Not Found";
     
-    model.trigger("error", model, errorMessage, options);
+    model.trigger("lerror", model, errorMessage, options);
     if (options && options.error)
       if (Backbone.VERSION === "0.9.10") {
+        console.log("error");
         options.error(model, errorMessage, options);
       } else {
         options.error(errorMessage);
